@@ -4,5 +4,11 @@
       "src": "/api/generate-audit.ts",
       "use": "@vercel/node"
     }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
   ]
 }
