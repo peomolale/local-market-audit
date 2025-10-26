@@ -1,0 +1,20 @@
+import { AuditData } from '../types';
+
+export const runFullAudit = async (businessQuery: string, locationQuery: string): Promise<AuditData> => {
+  const response = await fetch('/api/generate-audit', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ businessQuery, locationQuery }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    // The serverless function returns a JSON object with a `message` property on error.
+    throw new Error(result.message || 'An error occurred while fetching the audit data.');
+  }
+
+  return result as AuditData;
+};

@@ -1,0 +1,94 @@
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
+import { AuditData } from '../types';
+
+// Simple text wrapper
+const addWrappedText = (doc: jsPDF, text: string, x: number, y: number, maxWidth: number, options = {}) => {
+  const lines = doc.splitTextToSize(text || 'N/A', maxWidth);
+  doc.text(lines, x, y, options);
+  return lines.length * (doc.getFontSize() * 0.35); // Return approximate height
+};
+
+export const generatePdfReport = (data: AuditData) => {
+  const doc = new jsPDF();
+  const pageHeight = doc.internal.pageSize.height;
+  let currentY = 20;
+  const leftMargin = 15;
+  const rightMargin = 195;
+  const contentWidth = rightMargin - leftMargin;
+
+  // --- Title ---
+  doc.setFontSize(22);
+  doc.setTextColor(33, 150, 243); // A nice blue
+  doc.text('Local Market Gap Analysis', doc.internal.pageSize.width / 2, currentY, { align: 'center' });
+  currentY += 8;
+
+  doc.setFontSize(16);
+  doc.setTextColor(0, 0, 0);
+  doc.text(data.userBusiness.name, doc.internal.pageSize.width / 2, currentY, { align: 'center' });
+  currentY += 15;
+
+  // --- Gap Analysis Summary ---
+  doc.setFontSize(14);
+  doc.setTextColor(63, 81, 181); // Indigo
+  doc.text('Competitive Gap Summary', leftMargin, currentY);
+  currentY += 8;
+
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  currentY += addWrappedText(doc, data.gapAnalysis.summary, leftMargin, currentY, contentWidth);
+  currentY += 10;
+  
+  // --- Gap Analysis Table ---
+  (doc as any).autoTable({
+    startY: currentY,
+    head: [['Metric', 'Your Business', 'Top Competitor', 'Gap & Opportunity']],
+    body: data.gapAnalysis.comparison.map(item => [item.metric, item.userValue, item.competitorValue, item.gap]),
+    theme: 'grid',
+    headStyles: { fillColor: [63, 81, 181] },
+    didDrawPage: (hookData: any) => {
+        currentY = hookData.cursor?.y ? hookData.cursor.y + 10 : currentY;
+    }
+  });
+
+  // Check for new page
+  if (currentY > pageHeight - 40) {
+    doc.addPage();
+    currentY = 20;
+  }
+
+  // --- AI Generated Description ---
+  doc.setFontSize(14);
+  doc.setTextColor(63, 81, 181);
+  doc.text('AI-Generated Business Description to Close the Gap', leftMargin, currentY);
+  currentY += 8;
+
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  currentY += addWrappedText(doc, data.generatedContent.description, leftMargin, currentY, contentWidth);
+  currentY += 10;
+  
+  // --- Top Competitor Overview ---
+   if (currentY > pageHeight - 40) {
+    doc.addPage();
+    currentY = 20;
+  }
+  doc.setFontSize(14);
+  doc.setTextColor(63, 81, 181);
+  doc.text('Top Competitor Profile', leftMargin, currentY);
+  currentY += 8;
+  
+  doc.setFontSize(11);
+  doc.setTextColor(0,0,0);
+  doc.text(data.topCompetitor.name, leftMargin, currentY);
+  doc.setTextColor(100,100,100);
+  doc.text(`${data.topCompetitor.rating} ★ (${data.topCompetitor.reviewCount} reviews)`, rightMargin, currentY, {align: 'right'});
+  currentY += 6;
+  currentY += addWrappedText(doc, `Strengths: ${(data.topCompetitor.strengths || []).join(', ')}`, leftMargin, currentY, contentWidth);
+  currentY += 6;
+  currentY += addWrappedText(doc, `Summary: ${data.topCompetitor.summary}`, leftMargin, currentY, contentWidth);
+  currentY += 4;
+
+
+  doc.save(`Gap_Analysis_${data.userBusiness.name.replace(/\s+/g, '_')}.pdf`);
+};

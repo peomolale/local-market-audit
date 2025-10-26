@@ -1,0 +1,170 @@
+import { GoogleGenAI } from "@google/genai";
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { AuditData, LatLng, BusinessProfile, Competitor } from '../types';
+
+const getAIClient = () => {
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY environment variable not set on the server");
+  }
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
+
+const generateAudit = async (businessQuery: string, locationQuery: string): Promise<AuditData> => {
+  const ai = getAIClient();
+
+  const prompt = `
+    SYSTEM ROLE: You are an expert Local SEO and competitive analyst AI.
+
+    TASK:
+    A user has provided a business name ("${businessQuery}") and a location ("${locationQuery}"). Your task is to perform a detailed GAP ANALYSIS comparing that business to its single, top-ranked local competitor found near that location.
+
+    **CRITICAL TWO-STEP PROCESS:**
+
+    1.  **FIND THE BUSINESSES:**
+        *   **User Business:** First, you MUST use the Google Maps tool to find the specific business the user is asking about, using both the business name and the provided location as context. You MUST retrieve its full, authoritative details: name, address, category, rating, reviewCount, photos, summary (use editorial_summary if available), latLng, placeId, and mapsUrl. This data is the absolute source of truth for the user's business.
+        *   **Top Competitor:** Second, you MUST use the Google Maps tool to identify the single **top-ranked** (highest rating and significant review count) competitor in the same category near the user's business location. You MUST retrieve its full details as well.
+
+    2.  **GENERATE THE AUDIT JSON:** After, and ONLY after, you have found both businesses, construct a single, valid JSON object that represents the full gap analysis. Do NOT include any text, explanations, or markdown fences before or after the JSON.
+
+    **JSON GENERATION INSTRUCTIONS:**
+    Generate the complete JSON object with the following keys and strictly adhere to the rules for each field.
+
+    1.  **userBusiness**: (object) This object MUST be constructed from the authoritative data you found for the user's business in Step 1.
+    2.  **topCompetitor**: (object) This object MUST be for the single top competitor you identified. It must include a "strengths" array of strings highlighting why it's the top competitor.
+    3.  **gapAnalysis**: (object) This is the most critical part. Create a detailed comparison.
+        *   "summary": (string) A concise, high-level summary of the competitive landscape and the user's biggest opportunities.
+        *   "comparison": (array of objects) An array of objects, each comparing a specific metric. Include at least 5-7 key comparison points. Each object must have:
+            *   "metric": (string) The name of the metric (e.g., "Google Rating", "Number of Reviews", "Photo Quantity", "Description Quality", "Service Mentions").
+            *   "userValue": (string | number) The value for the user's business. For qualitative metrics, use a short phrase (e.g., "Generic", "Well-optimized").
+            *   "competitorValue": (string | number) The value for the competitor's business.
+            *   "gap": (string) A short, actionable sentence describing the gap and what to do.
+    4.  **generatedContent**: (object) Create content specifically designed to close the identified gaps.
+        *   "description": (string) An SEO-optimized business description inspired by the competitor's strengths.
+        *   "keywords": (string[]) An array of the top 10 relevant local SEO keywords needed to compete.
+        *   "faqs": (object[]) An array of 3-5 FAQ objects, each with "question" and "answer", addressing topics the competitor covers.
+        *   "services": (object[]) An array of 3-5 service objects, each with "name" and "description", to better match the competitor's offerings.
+        *   "posts": (object[]) An array of 2 social media post ideas to increase engagement.
+    5.  **forecast**: (object) A projection based on implementing the recommendations.
+        *   "visibilityImprovement": (number) A percentage increase in visibility.
+        *   "profileScore": (number) The new predicted profile score out of 100.
+        *   "optimizationPriority": (string[]) The top 3 areas to focus on to close the gap with the top competitor.
+
+    Now, execute the two-step process and generate the complete JSON object based on these strict instructions.
+    `;
+    
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-pro",
+        contents: prompt,
+        config: {
+            tools: [{ googleMaps: {} }],
+        },
+    });
+  
+  let jsonText = response.text.trim();
+  const match = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
+  if (match && match[1]) {
+    jsonText = match[1];
+  } else if (jsonText.startsWith('`')) {
+      jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+  }
+
+  try {
+    const parsedData = JSON.parse(jsonText);
+
+    const mapLatLng = (biz: any): LatLng | null => {
+        if (!biz) return null;
+        if (typeof biz.latitude === 'number' && typeof biz.longitude === 'number') {
+            return { latitude: biz.latitude, longitude: biz.longitude };
+        }
+        if (typeof biz.lat === 'number' && typeof biz.lng === 'number') {
+            return { latitude: biz.lat, longitude: biz.lng };
+        }
+        const locSource = biz.latLng || biz.location || biz.geometry?.location;
+        if (locSource && typeof locSource === 'object') {
+            const lat = locSource.latitude ?? locSource.lat;
+            const lng = locSource.longitude ?? locSource.lng;
+            if (typeof lat === 'number' && typeof lng === 'number') {
+                return { latitude: lat, longitude: lng };
+            }
+        }
+        return null;
+    };
+
+    const transformBusiness = (biz: any): BusinessProfile | Competitor | null => {
+        if (!biz) return null;
+        const placeId = biz.placeId || '';
+        let mapsUrl = biz.mapsUrl || '';
+        if (placeId && !mapsUrl) {
+            mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(biz.name || '')}&query_place_id=${placeId}`;
+        }
+
+        const transformed = {
+            name: biz.name || biz.business_name || 'N/A',
+            address: biz.address || 'No address provided',
+            category: biz.category || biz.primaryCategory || 'N/A',
+            rating: biz.rating || 0,
+            reviewCount: biz.reviewCount || biz.review_count || 0,
+            photos: biz.photos || [],
+            summary: biz.summary || 'No summary available.',
+            latLng: mapLatLng(biz),
+            placeId: placeId,
+            mapsUrl: mapsUrl,
+        };
+        
+        if (biz.strengths) {
+            (transformed as Competitor).strengths = biz.strengths;
+        }
+
+        return transformed;
+    };
+
+    const finalUserBusiness = transformBusiness(parsedData.userBusiness);
+    const finalTopCompetitor = transformBusiness(parsedData.topCompetitor);
+
+    if (!finalUserBusiness) {
+        throw new Error("AI failed to return a valid profile for the user's business.");
+    }
+     if (!finalTopCompetitor) {
+        throw new Error("AI failed to return a valid profile for the top competitor.");
+    }
+    
+    const transformedData: AuditData = {
+        userBusiness: finalUserBusiness as BusinessProfile,
+        topCompetitor: finalTopCompetitor as Competitor,
+        gapAnalysis: parsedData.gapAnalysis || { summary: '', comparison: [] },
+        generatedContent: parsedData.generatedContent || {},
+        forecast: parsedData.forecast || {},
+    };
+
+    return transformedData;
+
+  } catch (e) {
+    console.error("Failed to parse Gemini JSON response:", e);
+    console.error("Raw response text:", jsonText);
+    throw new Error("Invalid JSON response from the AI model.");
+  }
+};
+
+export default async function handler(
+  request: VercelRequest,
+  response: VercelResponse,
+) {
+  if (request.method !== 'POST') {
+    return response.status(405).json({ message: 'Method Not Allowed' });
+  }
+
+  const { businessQuery, locationQuery } = request.body;
+
+  if (!businessQuery || !locationQuery) {
+    return response.status(400).json({ message: 'Missing businessQuery or locationQuery' });
+  }
+
+  try {
+    const data = await generateAudit(businessQuery, locationQuery);
+    return response.status(200).json(data);
+  } catch (error) {
+    console.error("Error in serverless function:", error);
+    const message = error instanceof Error ? error.message : "An unknown server error occurred.";
+    return response.status(500).json({ message });
+  }
+}

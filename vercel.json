@@ -1,0 +1,8 @@
+{
+  "builds": [
+    {
+      "src": "/api/generate-audit.ts",
+      "use": "@vercel/node"
+    }
+  ]
+}

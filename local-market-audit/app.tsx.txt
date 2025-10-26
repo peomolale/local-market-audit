@@ -1,0 +1,142 @@
+import React, { useState, useCallback } from 'react';
+import { runFullAudit } from './services/geminiService';
+import { AuditData, AppState } from './types';
+import AuditResult from './components/AuditResult';
+import LoadingSpinner from './components/LoadingSpinner';
+import { Bot, MapPin, Search } from 'lucide-react';
+
+const App: React.FC = () => {
+  const [businessQuery, setBusinessQuery] = useState('');
+  const [locationQuery, setLocationQuery] = useState('');
+  const [appState, setAppState] = useState<AppState>(AppState.Idle);
+  const [error, setError] = useState<string | null>(null);
+  const [auditData, setAuditData] = useState<AuditData | null>(null);
+
+  const extractBusinessName = (query: string): string => {
+      const patterns = [
+          /audit our listing for (.+)/i,
+          /audit (.+)/i,
+          /show gaps with top competitors for (.+)/i,
+          /analyze gaps for (.+)/i,
+      ];
+      for (const pattern of patterns) {
+          const match = query.match(pattern);
+          if (match && match[1]) {
+              return match[1].trim();
+          }
+      }
+      return query.trim();
+  };
+
+  const handleAudit = useCallback(async () => {
+    if (!businessQuery) {
+      setError("Please enter a business name.");
+      return;
+    }
+     if (!locationQuery) {
+      setError("Please enter a location to search near.");
+      setAppState(AppState.Error);
+      return;
+    }
+
+    setAppState(AppState.Loading);
+    setError(null);
+    setAuditData(null);
+
+    const businessName = extractBusinessName(businessQuery);
+
+    try {
+      const data = await runFullAudit(businessName, locationQuery);
+      setAuditData(data);
+      setAppState(AppState.Success);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "An unknown error occurred.");
+      setAppState(AppState.Error);
+    }
+  }, [businessQuery, locationQuery]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleAudit();
+  };
+  
+  const renderContent = () => {
+      if (appState === AppState.Loading) {
+          return <div className="mt-16"><LoadingSpinner message={'AI Copilot is analyzing...'} /></div>;
+      }
+      if (appState === AppState.Success && auditData) {
+          return <AuditResult data={auditData} />;
+      }
+       if (appState === AppState.Error) {
+           return <div className="mt-16 text-center text-red-400 bg-red-900/50 p-6 rounded-lg border border-red-700">
+               <h3 className="text-xl font-bold mb-2">Analysis Failed</h3>
+               <p>{error}</p>
+           </div>;
+       }
+
+      // Default idle state
+      return <div className="text-center text-gray-400 mt-16">
+          <Bot size={48} className="mx-auto mb-4 text-brand-primary" />
+          <p className="text-lg">Enter a business and location to start your AI-powered gap analysis.</p>
+           <p className="text-sm mt-2">Example: "Chobe Safari Lodge" in "Botswana"</p>
+      </div>;
+  };
+
+
+  return (
+    <div className="min-h-screen text-white p-4 sm:p-6 lg:p-8 bg-grid-gray-700/[0.2]">
+      <div className="max-w-7xl mx-auto">
+        <header className="text-center mb-8">
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-brand-primary">
+            Local Market Gap Analysis
+          </h1>
+          <p className="mt-2 text-lg text-gray-300 max-w-3xl mx-auto">
+            Instantly compare your business to the top-ranked local competitor and get an AI-powered plan to close the gap.
+          </p>
+        </header>
+
+        <div className="sticky top-4 z-10 bg-brand-dark/80 backdrop-blur-lg p-4 rounded-2xl border border-gray-700 shadow-2xl">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+            <div className="relative w-full md:col-span-2">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={businessQuery}
+                onChange={(e) => setBusinessQuery(e.target.value)}
+                placeholder="Enter your business name..."
+                className="w-full bg-gray-800 border-2 border-gray-600 rounded-full py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-all"
+                disabled={appState === AppState.Loading}
+              />
+            </div>
+            <div className="relative w-full md:col-span-2">
+              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={locationQuery}
+                onChange={(e) => setLocationQuery(e.target.value)}
+                placeholder="Enter location (e.g. city, address)"
+                className="w-full bg-gray-800 border-2 border-gray-600 rounded-full py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-all"
+                disabled={appState === AppState.Loading}
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full md:col-span-1 bg-brand-primary hover:bg-yellow-300 text-brand-dark font-bold py-3 px-6 rounded-full transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 flex items-center justify-center gap-2"
+              disabled={appState === AppState.Loading || !businessQuery || !locationQuery}
+            >
+              <Bot size={20}/>
+              <span>Analyze</span>
+            </button>
+          </form>
+        </div>
+
+        <main>
+            {renderContent()}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default App;

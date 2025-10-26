@@ -1,0 +1,126 @@
+import React, { useState } from 'react';
+import { AuditData } from '../types';
+import SectionCard from './SectionCard';
+import ProfileCompletenessChart from './ProfileCompletenessChart';
+import { generatePdfReport } from '../utils/pdfGenerator';
+import { Camera, CheckCircle, XCircle, FileDown, ThumbsUp, ThumbsDown, Megaphone, Lightbulb } from 'lucide-react';
+
+interface VisualAuditReportProps {
+  data: AuditData;
+}
+
+const VisualAuditReport: React.FC<VisualAuditReportProps> = ({ data }) => {
+    const { visualAudit } = data;
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    if (!visualAudit) {
+        return null;
+    }
+
+    const handleDownload = () => {
+        setIsDownloading(true);
+        try {
+            generatePdfReport(data);
+        } catch(e) {
+            console.error("Failed to generate PDF", e);
+            alert("Sorry, there was an error generating the PDF report.");
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+    const ChecklistItem: React.FC<{ label: string; checked: boolean }> = ({ label, checked }) => (
+        <li className={`flex items-center p-2 rounded-md ${checked ? 'bg-green-800/50' : 'bg-red-800/50'}`}>
+            {checked ? <CheckCircle className="text-green-400 mr-2 flex-shrink-0" /> : <XCircle className="text-red-400 mr-2 flex-shrink-0" />}
+            <span className="text-gray-200">{label}</span>
+        </li>
+    );
+
+    return (
+        <SectionCard title="Visual Health & Completeness" icon={<Camera />}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left side: Chart and Checklist */}
+                <div className="lg:col-span-1 space-y-6">
+                    <ProfileCompletenessChart data={visualAudit} />
+                    <div>
+                        <h4 className="text-lg font-semibold text-center text-gray-200 mb-3">Completeness Checklist</h4>
+                        <ul className="space-y-2 text-sm">
+                            <ChecklistItem label="Description" checked={visualAudit.profileCompleteness.checklist.description} />
+                            <ChecklistItem label="Categories" checked={visualAudit.profileCompleteness.checklist.categories} />
+                            <ChecklistItem label="Amenities" checked={visualAudit.profileCompleteness.checklist.amenities} />
+                            <ChecklistItem label="Services" checked={visualAudit.profileCompleteness.checklist.services} />
+                            <ChecklistItem label="Hours" checked={visualAudit.profileCompleteness.checklist.hours} />
+                            <ChecklistItem label="Photos" checked={visualAudit.profileCompleteness.checklist.photos} />
+                            <ChecklistItem label="Q&A" checked={visualAudit.profileCompleteness.checklist.qAndA} />
+                            <ChecklistItem label="Reviews" checked={visualAudit.profileCompleteness.checklist.reviews} />
+                        </ul>
+                    </div>
+                </div>
+                
+                {/* Right side: Summaries and Photos */}
+                <div className="lg:col-span-2 space-y-6">
+                    <div>
+                        <h4 className="text-lg font-semibold text-brand-primary flex items-center mb-2"><Megaphone className="mr-2"/> AI Summaries</h4>
+                        <div className="p-4 bg-gray-700/50 rounded-lg space-y-3">
+                            <div>
+                                <h5 className="font-bold text-gray-300">Profile Completeness:</h5>
+                                <p className="text-sm italic">{visualAudit.profileCompleteness.summary}</p>
+                            </div>
+                             <div>
+                                <h5 className="font-bold text-gray-300">Photo Health:</h5>
+                                <p className="text-sm italic">{visualAudit.photoAnalysis.summary}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                     <div>
+                        <h4 className="text-lg font-semibold text-brand-primary flex items-center mb-2"><Lightbulb className="mr-2"/> Actionable Recommendations</h4>
+                        <div className="p-4 bg-gray-700/50 rounded-lg">
+                            <ul className="list-disc list-inside space-y-2 text-sm">
+                                {visualAudit.recommendations.map((rec, i) => <li key={i}>{rec}</li>)}
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 className="text-lg font-semibold text-brand-primary mb-2">Photo Analysis</h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                            {visualAudit.photoAnalysis.photos.map(photo => (
+                                <div key={photo.url} className="group relative aspect-square">
+                                    <img src={photo.url} alt="Analyzed business photo" className="w-full h-full object-cover rounded-md" />
+                                    <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity p-2 text-xs overflow-y-auto rounded-md">
+                                        {photo.issues.length > 0 ? (
+                                            <>
+                                                <h5 className="font-bold text-red-400 flex items-center"><ThumbsDown size={14} className="mr-1"/> Issues Found:</h5>
+                                                <ul className="list-disc list-inside mt-1">
+                                                    {photo.issues.map(issue => <li key={issue.issue}>{issue.finding}</li>)}
+                                                </ul>
+                                            </>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center h-full text-green-400">
+                                                <ThumbsUp size={20} />
+                                                <p className="font-bold mt-1">Looks Good!</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div className="mt-8 text-center">
+                <button
+                    onClick={handleDownload}
+                    disabled={isDownloading}
+                    className="bg-brand-primary hover:bg-yellow-300 text-brand-dark font-bold py-3 px-8 rounded-full transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 flex items-center justify-center gap-2 mx-auto"
+                >
+                    <FileDown size={20} />
+                    {isDownloading ? 'Generating...' : 'Download Report'}
+                </button>
+            </div>
+        </SectionCard>
+    );
+};
+
+export default VisualAuditReport;

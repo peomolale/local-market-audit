@@ -1,0 +1,48 @@
+import React from 'react';
+import { BusinessProfile } from '../types';
+import { ExternalLink } from 'lucide-react';
+
+interface MapDisplayProps {
+  userBusiness: BusinessProfile;
+}
+
+const MapDisplay: React.FC<MapDisplayProps> = ({ userBusiness }) => {
+  if (!userBusiness?.latLng) {
+      return null;
+  }
+
+  // Use a keyless embed URL to avoid API key errors.
+  // 'q' sets the marker, 't=k' sets satellite view, 'z' sets zoom.
+  const mapSrc = `https://maps.google.com/maps?q=${userBusiness.latLng.latitude},${userBusiness.latLng.longitude}&t=k&z=14&ie=UTF8&iwloc=&output=embed`;
+
+  return (
+    <div className="space-y-4">
+        <div className="relative w-full h-96 md:h-[500px] bg-gray-700 rounded-xl overflow-hidden border-2 border-gray-600 shadow-2xl">
+        <iframe
+            title={`Map of ${userBusiness.name}`}
+            width="100%"
+            height="100%"
+            loading="lazy"
+            allowFullScreen
+            referrerPolicy="no-referrer-when-downgrade"
+            src={mapSrc}
+            className="absolute inset-0 border-0"
+        >
+        </iframe>
+        </div>
+        {userBusiness.mapsUrl && (
+            <a 
+                href={userBusiness.mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center w-full sm:w-auto sm:float-right bg-gray-700 hover:bg-gray-600 text-brand-primary font-semibold py-2 px-4 border border-gray-600 rounded-lg shadow transition-colors"
+            >
+                View on Google Maps
+                <ExternalLink className="ml-2 h-4 w-4" />
+            </a>
+        )}
+    </div>
+  );
+};
+
+export default MapDisplay;

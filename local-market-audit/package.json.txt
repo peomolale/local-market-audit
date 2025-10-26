@@ -1,0 +1,18 @@
+{
+  "name": "local-ai-audit-copilot",
+  "version": "1.0.0",
+  "description": "An interactive web app that uses Gemini with Google Maps data to audit a local business against its competitors.",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'No dev script specified. Serve index.html statically.'",
+    "build": "echo 'No build step required. Files are served as is.'",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@google/genai": "^1.27.0"
+  },
+  "devDependencies": {
+    "@vercel/node": "^3.2.0",
+    "typescript": "^5.0.0"
+  }
+}

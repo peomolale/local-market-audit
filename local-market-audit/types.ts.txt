@@ -1,0 +1,107 @@
+export interface LatLng {
+  latitude: number;
+  longitude: number;
+}
+
+export interface BusinessProfile {
+  name: string;
+  address: string;
+  category: string;
+  rating: number;
+  reviewCount: number;
+  photos: string[];
+  summary: string;
+  latLng: LatLng | null;
+  placeId: string;
+  mapsUrl: string;
+}
+
+export interface Competitor extends BusinessProfile {
+  strengths: string[];
+}
+
+export interface GapAnalysisComparison {
+  metric: string;
+  userValue: string | number;
+  competitorValue: string | number;
+  gap: string;
+}
+
+export interface GapAnalysis {
+  summary: string;
+  comparison: GapAnalysisComparison[];
+}
+
+export interface GeneratedContent {
+  description: string;
+  keywords: string[];
+  services: { name: string; description: string }[];
+  faqs: { question: string; answer: string }[];
+  posts: { title: string; content: string }[];
+}
+
+export interface Forecast {
+  visibilityImprovement: number;
+  profileScore: number;
+  optimizationPriority: string[];
+}
+
+export interface AuditData {
+  userBusiness: BusinessProfile;
+  topCompetitor: Competitor;
+  gapAnalysis: GapAnalysis;
+  generatedContent: GeneratedContent;
+  forecast: Forecast;
+  visualAudit?: VisualAuditReportData; // Make visualAudit optional
+}
+
+export enum AppState {
+  Idle,
+  Loading,
+  Success,
+  Error
+}
+
+export interface ChartData {
+  name: string;
+  user: number;
+  competitor: number;
+}
+
+export interface ProfileCompletenessChecklist {
+    description: boolean;
+    categories: boolean;
+    amenities: boolean;
+    services: boolean;
+    hours: boolean;
+    photos: boolean;
+    qAndA: boolean;
+    reviews: boolean;
+}
+
+export interface ProfileCompleteness {
+    score: number;
+    summary: string;
+    checklist: ProfileCompletenessChecklist;
+}
+
+export interface PhotoIssue {
+  issue: string;
+  finding: string;
+}
+
+export interface PhotoAnalysisItem {
+  url: string;
+  issues: PhotoIssue[];
+}
+
+export interface PhotoAnalysis {
+    summary: string;
+    photos: PhotoAnalysisItem[];
+}
+
+export interface VisualAuditReportData {
+    profileCompleteness: ProfileCompleteness;
+    photoAnalysis: PhotoAnalysis;
+    recommendations: string[];
+}

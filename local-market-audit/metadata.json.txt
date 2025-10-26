@@ -1,0 +1,5 @@
+{
+  "name": "Local AI Audit Copilot",
+  "description": "An interactive web app that uses Gemini with Google Maps data to audit a local business against its competitors, identify gaps, and automatically generate optimized content and images to boost its online visibility.",
+  "requestFramePermissions": []
+}

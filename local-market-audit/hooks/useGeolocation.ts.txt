@@ -1,0 +1,62 @@
+import { useState, useEffect, useCallback } from 'react';
+import { LatLng } from '../types';
+
+interface GeolocationState {
+  location: LatLng | null;
+  loading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
+
+export const useGeolocation = (): GeolocationState => {
+  const [state, setState] = useState<Omit<GeolocationState, 'refetch'>>({
+    location: null,
+    loading: true,
+    error: null,
+  });
+
+  const fetchLocation = useCallback(() => {
+    // Reset state on each fetch attempt
+    setState({ location: null, loading: true, error: null });
+
+    if (!navigator.geolocation) {
+      setState({
+        location: null,
+        loading: false,
+        error: 'Geolocation is not supported by your browser.',
+      });
+      return;
+    }
+
+    const onSuccess = (position: GeolocationPosition) => {
+      setState({
+        location: {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        },
+        loading: false,
+        error: null,
+      });
+    };
+
+    const onError = (error: GeolocationPositionError) => {
+      setState({
+        location: null,
+        loading: false,
+        error: error.message, // Use the direct error message from the API
+      });
+    };
+
+    navigator.geolocation.getCurrentPosition(onSuccess, onError, {
+        enableHighAccuracy: true,
+        timeout: 10000, // Add a 10-second timeout
+        maximumAge: 0,   // Don't use a cached position
+    });
+  }, []);
+
+  useEffect(() => {
+    fetchLocation();
+  }, [fetchLocation]);
+
+  return { ...state, refetch: fetchLocation };
+};
